@@ -149,7 +149,7 @@ namespace ResourceManager
 			return goAsset as T;
 		}
 		
-		private async Task<(bool success, T objAsset)> NewOriginalAssetAsync<T>(string assetPath) where T : Object
+		private async Task<(bool success, T objAsset)> NewOriginalAssetAsync<T>(string assetPath, bool saveCache = false, bool showLog = true) where T : Object
 		{
 			var assetAsync = Resources.LoadAsync<T>(assetPath);
 			while (!assetAsync.isDone)
@@ -161,14 +161,23 @@ namespace ResourceManager
 
 			if (asset.IsNull(false))
 			{
-				Debug.LogError($"NewOriginalAssetAsync : Not found resource path => \"{assetPath}\"");
+				if (showLog)
+				{
+					Debug.LogError($"NewOriginalAssetAsync : Not found resource path => \"{assetPath}\"");
+				}
 				return (false, null);
+			}
+
+			// 풀에 저장합니다.
+			if (saveCache)
+			{
+				_cachedOriginalAssets[assetPath] = asset;
 			}
 
 			return (true, asset);
 		}
 		
-		private T NewOriginalAsset<T>(string assetPath, bool showLog = true) where T : Object
+		private T NewOriginalAsset<T>(string assetPath, bool saveCache = false, bool showLog = true) where T : Object
 		{
 			var asset = Resources.Load<T>(assetPath);
 			if (null == asset)
@@ -180,10 +189,16 @@ namespace ResourceManager
 				return null;
 			}
 
+			// 풀에 저장합니다.
+			if (saveCache)
+			{
+				_cachedOriginalAssets[assetPath] = asset;	
+			}
+
 			return asset;
 		}
 		
-		private T GetOrNewOriginalAsset<T>(string assetPath, bool showLog = true) where T : Object
+		private T GetOrNewOriginalAsset<T>(string assetPath, bool saveCache = false, bool showLog = true) where T : Object
 		{
 			var objOriginalAsset = GetOriginalAsset<T>(assetPath);
 			if (objOriginalAsset)
@@ -191,18 +206,16 @@ namespace ResourceManager
 				return objOriginalAsset;
 			}
 
-			objOriginalAsset = NewOriginalAsset<T>(assetPath, showLog);
+			objOriginalAsset = NewOriginalAsset<T>(assetPath, saveCache, showLog);
 			if (!objOriginalAsset)
 			{
 				return null;
 			}
 
-			_cachedOriginalAssets[assetPath] = objOriginalAsset;
-
 			return objOriginalAsset;
 		}
 		
-		private async Task<(bool success, T objAsset)> GetOrNewOriginalAssetAsync<T>(string assetPath) where T : Object
+		private async Task<(bool success, T objAsset)> GetOrNewOriginalAssetAsync<T>(string assetPath, bool saveCache = false, bool showLog = true) where T : Object
 		{
 			var objOriginalAsset = GetOriginalAsset<T>(assetPath);
 			if (null != objOriginalAsset)
@@ -210,7 +223,7 @@ namespace ResourceManager
 				return (true, objOriginalAsset);
 			}
 
-			var ret = await NewOriginalAssetAsync<T>(assetPath);
+			var ret = await NewOriginalAssetAsync<T>(assetPath, saveCache, showLog);
 			var asset = ret.objAsset;
 
 			if (asset.IsNull(false))
@@ -218,49 +231,29 @@ namespace ResourceManager
 				return (false, null);
 			}
 
-			_cachedOriginalAssets[assetPath] = asset;
-
 			return (true, asset);
 		}
 		
-		public async Task<(bool success, T objAsset)> LoadOriginalAssetAsync<T>(string assetPath, bool useCache = true) where T : Object
+		public async Task<(bool success, T objAsset)> LoadOriginalAssetAsync<T>(string assetPath, bool useCache = true, bool saveCache = false, bool showLog = true) where T : Object
 		{
 			if (string.IsNullOrEmpty(assetPath))
 			{
 				return (false, null);
 			}
 
-			return await (useCache ? GetOrNewOriginalAssetAsync<T>(assetPath) : NewOriginalAssetAsync<T>(assetPath));
+			return await (useCache
+				? GetOrNewOriginalAssetAsync<T>(assetPath, saveCache, showLog)
+				: NewOriginalAssetAsync<T>(assetPath, saveCache, showLog));
 		}
 
-		public Task<(bool success, T objAsset)> LoadOriginalAssetNoCacheAsync<T>(string assetPath) where T : Object
-		{
-			if (string.IsNullOrEmpty(assetPath))
-			{
-				return new Task<(bool success, T objAsset)>(() => (false, null));
-			}
-
-			return NewOriginalAssetAsync<T>(assetPath);
-		}
-
-		public T LoadOriginalAsset<T>(string assetPath, bool useCache = true, bool showLog = true) where T : Object
+		public T LoadOriginalAsset<T>(string assetPath, bool useCache = true, bool saveCache = false, bool showLog = true) where T : Object
 		{
 			if (string.IsNullOrEmpty(assetPath))
 			{
 				return null;
 			}
 
-			return useCache ? GetOrNewOriginalAsset<T>(assetPath, showLog) : NewOriginalAsset<T>(assetPath, showLog);
-		}
-
-		public T LoadOriginalAssetNoCache<T>(string assetPath, bool showLog = true) where T : Object
-		{
-			if (string.IsNullOrEmpty(assetPath))
-			{
-				return null;
-			}
-
-			return NewOriginalAsset<T>(assetPath, showLog);
+			return useCache ? GetOrNewOriginalAsset<T>(assetPath, saveCache, showLog) : NewOriginalAsset<T>(assetPath, saveCache, showLog);
 		}
 
 		private void ClearOriginalAssetList()
@@ -275,14 +268,14 @@ namespace ResourceManager
 		#endregion
 
 		#region ## ObjectInstance ##
-		public T LoadInstance<T>(string sPath, Transform trParent = null, bool bUsePreload = true, bool bShowLog = true) where T : Object
+		public T LoadInstance<T>(string sPath, Transform trParent = null, bool bUsePreload = true, bool saveCache = false, bool bShowLog = true) where T : Object
 		{
 			if (string.IsNullOrEmpty(sPath))
 			{
 				return null;
 			}
 
-			var objOriginalAsset = LoadOriginalAsset<T>(sPath, bUsePreload, false);
+			var objOriginalAsset = LoadOriginalAsset<T>(sPath, bUsePreload, saveCache);
 			if (objOriginalAsset.IsNull_NoLog())
 			{
 				if(bShowLog)
@@ -294,38 +287,28 @@ namespace ResourceManager
 			return Instantiate(objOriginalAsset, trParent, bUsePreload);
 		}
 
-		public async Task<(bool success, T objAsset)> LoadInstanceAsync<T>(string sPath, Transform trParent = null, bool bUsePreload = true, bool isEditor = false) where T : Object
+		public async Task<(bool success, T objAsset)> LoadInstanceAsync<T>(string sPath, Transform trParent = null, bool bUsePreload = true, bool saveCache = false, bool bShowLog = true) where T : Object
 		{
 			if (string.IsNullOrEmpty(sPath))
 			{
 				return (false, null);
 			}
 
-			T asset;
-			if (isEditor)
-			{
-				var objOriginalAsset = LoadOriginalAsset<T>(sPath);
-				asset = objOriginalAsset;
-			}
-			else
-			{
-				var objOriginalAsset = await LoadOriginalAssetAsync<T>(sPath);
-				asset = objOriginalAsset.objAsset;
-			}
-			
+			var objOriginalAsset = await LoadOriginalAssetAsync<T>(sPath, bUsePreload, saveCache);
+			var asset = objOriginalAsset.objAsset;
+
 			if (asset.IsNull_NoLog())
 			{
-				Debug.LogError(
-					$"ResourceManager.LoadInstanceAsync<{typeof(T).Name}>(\"{sPath}\") : loading failed (not found resource)");
+				if (bShowLog)
+				{
+					Debug.LogError(
+						$"ResourceManager.LoadInstanceAsync<{typeof(T).Name}>(\"{sPath}\") : loading failed (not found resource)");
+				}
+				
 				return (false, null);
 			}
 
 			return (true, Instantiate(asset, trParent, bUsePreload));
-		}
-		
-		public T InstantiateNoPreload<T>(T objSrc, Transform parent=null) where T : Object
-		{
-			return Instantiate(objSrc, parent, false);
 		}
 		
 		public T Instantiate<T>(T objSrc, bool bUsePreload) where T : Object
@@ -399,7 +382,7 @@ namespace ResourceManager
 				return false;
 			}
 
-			var ret = await LoadOriginalAssetAsync<T>(sPath);
+			var ret = await LoadOriginalAssetAsync<T>(sPath, true, true);
 			if (ret.objAsset.IsNull_NoLog())
 			{
 				Debug.LogError(
@@ -417,7 +400,7 @@ namespace ResourceManager
 				return false;
 			}
 
-			var objAsset = LoadOriginalAsset<T>(sPath);
+			var objAsset = LoadOriginalAsset<T>(sPath, true, true);
 			if (false == AddPreloadObject(objAsset, iCount))
 			{
 				return false;

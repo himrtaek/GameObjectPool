@@ -285,7 +285,7 @@ namespace GameObjectPool
 				return null;
 			}
 
-			var goAsset = ResourceManager.ResourceManager.Instance.LoadOriginalAsset<GameObject>(sPrefabPath);
+			var goAsset = ResourceManager.ResourceManager.Instance.LoadOriginalAsset<GameObject>(sPrefabPath, true, true);
 			return GetOrNewObject(goAsset, trParent, flag);
 		}
 
